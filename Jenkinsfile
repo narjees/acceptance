@@ -1,51 +1,36 @@
 pipeline {
     agent any
+   
     stages {
-        stage("Compilation") {
+        stage("Package") {
             steps {
-                sh "./gradlew compileJava"
+                sh "./gradlew build"
             }
         }
-        
-        stage("Test unitaire") {
+       
+        stage("Docker build") {
             steps {
-                sh "./gradlew test"
+                sh "docker build -t calculator ."
             }
         }
-        
-        stage("Couverture du code") {
+
+        stage("Docker push") {
             steps {
-                sh "./gradlew jacocoTestReport"
-                
-                publishHTML(target: [
-                    reportDir: 'build/reports/jacoco/test/html',
-                    reportFiles: 'index.html',
-                    reportName: 'JaCoCo Report'
-                ])
-                
-                sh "./gradlew jacocoTestCoverageVerification"
+                sh "docker push localhost:5000/calculator"
             }
         }
-        
-        stage("Analyse statique du code") {
+
+        stage("Déploiement sur staging") {
             steps {
-                sh "./gradlew checkstyleMain -Pcheckstyle.config=file:/home/calculator/config/checkstyle/checkstyle.xml"
-                
-                publishHTML(target: [
-                    reportDir: 'build/reports/checkstyle/',
-                    reportFiles: 'main.html',
-                    reportName: 'Checkstyle Report'
-                ])
+                sh "docker run -d --rm -p 8765:8080 --name calculator_staging localhost:5000/calculator"
             }
         }
-    }
-    post {
-        always {
-            mail to: 'lambara.hamza@gmail.com',
-                 subject: "Cher lion, votre compilation est terminée: ${currentBuild.fullDisplayName}",
-                 body: "Votre build est accompli. Veuillez vérifier: ${env.BUILD_URL}"
+
+        stage("Test d'acceptation") {
+            steps {
+                sleep 60
+                sh "chmod +x acceptance_test.sh && ./acceptance_test.sh"
+            }
         }
     }
 }
-
-
